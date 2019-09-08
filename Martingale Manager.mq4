@@ -14,6 +14,8 @@ enum enu_state  // enumeration of named constants
   {
    CHECK_STRATGEY,
    WAITING_START_TIME,
+   WAITING_LASTBAR,
+   WAITING_START_PENDING_BASED_ON_LASTBAR,
    TRADE_1,
    TRADE_2,
    TRADE_3,
@@ -24,6 +26,15 @@ enum enu_state  // enumeration of named constants
    TRADE_9,
    TRADE_10,
    TRADE_11
+  };
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+enum enu_market  // enumeration of named constants
+  {
+   MARKET_EXCUTION,
+   BAR_DEPENDANT,
+   PENDING_ORDER
   };
 //+------------------------------------------------------------------+
 //|                                                                  |
@@ -41,15 +52,16 @@ struct strategy
   {
    string            symbol;
    time_t            start_time;
-   bool              lastcandle_dependant;
+   bool              bar_dependant_bar;
    int               lastcandle_dependant_timeframe;
-   bool              start_pendingorder;
    int               deviation_pips;
    enu_state         state;
    bool              enabled;
-   int               type_market;
+   enu_market        type_market;
    int               initial_trade_counter;
    int               lot_size[10];
+   int               takeprofit;
+   int               stoploss;
    int               spread_cap;
    int               magic_number;
   };
@@ -109,6 +121,7 @@ int counter;
 void OnTimer()
   {
 //---
+RefreshRates();
 
    counter++;
    if(counter%2000)
@@ -127,48 +140,59 @@ void OnTimer()
 
 void processStrategy(int id)
   {
+  
 
    datetime t=TimeGMT();
+   strategy current_strategy=conf.s[id];
    int strategy_hour=TimeHour(t)+conf.time_adjustment;
    int strategy_minute=TimeMinute(t)+conf.time_adjustment;
-   enu_state activeState = conf.s[id].state;
-   switch(activeState) 
+   enu_state activeState=conf.s[id].state;
+   switch(activeState)
      {
 
-      case CHECK_STRATGEY: 
+      case CHECK_STRATGEY:
+        {
+         if(current_strategy.type_market == MARKET_EXCUTION){
+         
+           activeState=WAITING_START_TIME;
+         
+         }else if(current_strategy.type_market == BAR_DEPENDANT){
+         
+         activeState=WAITING_LASTBAR;
+         
+         }else if(current_strategy.type_market == PENDING_ORDER){
+         
+         activeState=WAITING_START_PENDING_BASED_ON_LASTBAR;
+         }
+ 
+         break;
+        }
+
+      case WAITING_LASTBAR:
         {
         
+
+
+         break;
+        }
+      case WAITING_START_TIME:
+        {
+         
+         
+         break;
+        }
+
+      case WAITING_START_PENDING_BASED_ON_LASTBAR:
+        {
         
-         activeState=WAITING_START_TIME;
-         break;
-        }
-      case WAITING_START_TIME: 
-        {
-         activeState=State.RED_YELLOW;
          break;
         }
 
-      case TRADE_1: 
-        {
-         activeState=State.GREEN;
-         break;
-        }
 
-      case TRADE_2: 
-        {
-         activeState=State.YELLOW;
-         break;
-        }
-
-      case TRADE_3: 
-        {
-         activeState=State.RED;
-         break;
-        }
 
      }
-     
-     conf.s[id].state = activeState; 
+
+   conf.s[id].state=activeState;
 
   }
 //+------------------------------------------------------------------+
