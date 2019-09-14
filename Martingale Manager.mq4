@@ -18,16 +18,9 @@ enum enu_state  // enumeration of named constants
    WAITING_LASTBAR,
    WAITING_START_PENDING_BASED_ON_LASTBAR,
    LET_MARKET_DECIDE_FIND_DIRECTION,
-   COUNTER_TRADE_2,
-   COUNTER_TRADE_3,
-   TRADE_3,
-   TRADE_4,
-   TRADE_6,
-   TRADE_7,
-   TRADE_8,
-   TRADE_9,
-   TRADE_10,
-   TRADE_11
+   COUNTER_TRADE_LOOP,
+   COUNTER_TRADE_1,
+   FINILIZE_TRADES
   };
 //+------------------------------------------------------------------+
 //|                                                                  |
@@ -62,8 +55,10 @@ struct strategy
    enu_market        type_market;
    int               initial_trade_counter;
    double            lot_size[10];
+   int               next_size;
+   int               tradeno_cap;
    int               takeprofit;
-   double            stoploss;
+   int               stoploss;
    int               spread_cap;
    int               magic_number;
   };
@@ -136,7 +131,7 @@ void OnTimer()
    RefreshRates();
 
    counter++;
-   if(counter%2000)
+   if(counter%2000==0)
      {
 
       // read  configuration
@@ -144,6 +139,8 @@ void OnTimer()
 
    for(int i=0;i<conf.num_stratgies;i++)
      {
+     
+     processStrategy(i);
 
      }
 
@@ -171,6 +168,7 @@ void processStrategy(int id)
 /************************************************************************************************************/
       case CHECK_STRATGEY:
 
+         current_strategy.next_size=0;
          if(current_strategy.type_market==MARKET_EXCUTION_BUY)
            {
 
@@ -232,7 +230,9 @@ void processStrategy(int id)
 
               }
 
-            activeState=COUNTER_TRADE_2;
+            current_strategy.next_size=2;
+
+            activeState=COUNTER_TRADE_LOOP;
 
            }
          break;
@@ -255,9 +255,10 @@ void processStrategy(int id)
                           current_strategy.lot_size[1],
                           spread_cap,
                           magic_number,take_profit,stop_loss);
+            current_strategy.next_size=2;
+            activeState=COUNTER_TRADE_LOOP;
            }
 
-         activeState=COUNTER_TRADE_2;
          break;
 /************************************************************************************************************/
       case WAITING_START_TIME_SELL:
@@ -276,10 +277,10 @@ void processStrategy(int id)
                          current_strategy.lot_size[1],
                          spread_cap,
                          magic_number,take_profit,stop_loss);
-
+            current_strategy.next_size=2;
+            activeState=COUNTER_TRADE_LOOP;
            }
 
-         activeState=COUNTER_TRADE_2;
          break;
 /************************************************************************************************************/
       case WAITING_START_PENDING_BASED_ON_LASTBAR:
@@ -299,57 +300,64 @@ void processStrategy(int id)
                          current_strategy.lot_size[1],
                          spread_cap,
                          magic_number,take_profit,stop_loss);
+            current_strategy.next_size=2;
+            activeState=LET_MARKET_DECIDE_FIND_DIRECTION;
            }
-         activeState=LET_MARKET_DECIDE_FIND_DIRECTION;
+
          break;
 /************************************************************************************************************/
       case LET_MARKET_DECIDE_FIND_DIRECTION:
         {
 
-         if(order_counts.buy==1 && order_counts.sellstop==0)
+         if((order_counts.buy==1 && order_counts.sellstop==0) || (order_counts.sell==1 && order_counts.buystop==0))
            {
 
-            SellStopOrder(strategy_symbol,
-                          MarketInfo(strategy_symbol,MODE_BID)-Point*current_strategy.stoploss,
-                          current_strategy.lot_size[2],
-                          spread_cap,
-                          magic_number,take_profit,stop_loss);
-              } else  if(order_counts.sell==1 && order_counts.buystop==0){
-
-            BuyStopOrder(strategy_symbol,
-                         MarketInfo(strategy_symbol,MODE_ASK)+Point*current_strategy.stoploss,
-                         current_strategy.lot_size[2],
-                         spread_cap,
-                         magic_number,take_profit,stop_loss);
+            DeletePendingOrders(strategy_symbol,magic_number);
+            current_strategy.next_size=1;
+            activeState=COUNTER_TRADE_LOOP;
 
            }
 
         }
       break;
+
 /************************************************************************************************************/
-      case COUNTER_TRADE_2:
-        {
+      case COUNTER_TRADE_LOOP:
 
-         if(order_counts.buy==1 && order_counts.sellstop==0)
+         if(current_strategy.next_size==current_strategy.tradeno_cap)
+           {
+            activeState=FINILIZE_TRADES;
+           }
+         if(order_counts.buy==1 && order_counts.sellstop==0 && order_counts.buystop==0 && order_counts.sell==0)
            {
 
             SellStopOrder(strategy_symbol,
                           MarketInfo(strategy_symbol,MODE_BID)-Point*current_strategy.stoploss,
-                          current_strategy.lot_size[2],
+                          current_strategy.lot_size[current_strategy.next_size],
                           spread_cap,
                           magic_number,take_profit,stop_loss);
-              } else  if(order_counts.sell==1 && order_counts.buystop==0){
+            current_strategy.next_size++;
+
+              } else  if(order_counts.sell==1 && order_counts.buystop==0 && order_counts.buy==0 && order_counts.sellstop==0){
 
             BuyStopOrder(strategy_symbol,
                          MarketInfo(strategy_symbol,MODE_ASK)+Point*current_strategy.stoploss,
-                         current_strategy.lot_size[2],
+                         current_strategy.lot_size[current_strategy.next_size],
                          spread_cap,
                          magic_number,take_profit,stop_loss);
+            current_strategy.next_size++;
 
            }
 
-        }
-      break;
+         break;
+/************************************************************************************************************/
+      case FINILIZE_TRADES:
+
+         break;
+/************************************************************************************************************/
+      default:
+
+         break;
 
      }
 
@@ -405,6 +413,9 @@ OrderCount CountOrders(string symbol,int magicNumber)
    OrderCount tmp={0,0,0,0};
    int total= OrdersTotal();
    for(int i=total-1;i>=0;i--)
+      //+------------------------------------------------------------------+
+      //|                                                                  |
+      //+------------------------------------------------------------------+
      {
 
       if(OrderSelect(i,SELECT_BY_POS))
@@ -442,5 +453,84 @@ OrderCount CountOrders(string symbol,int magicNumber)
      }
    return tmp;
 
+  }
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+void DeletePendingOrders(string symbol,int magicNumber)
+  {
+
+   int total= OrdersTotal();
+   for(int i=total-1;i>=0;i--)
+      //+------------------------------------------------------------------+
+      //|                                                                  |
+      //+------------------------------------------------------------------+
+     {
+
+      if(OrderSelect(i,SELECT_BY_POS))
+        {
+         if(OrderSymbol()==symbol && OrderMagicNumber()==magicNumber)
+           {
+            int type=OrderType();
+
+            bool result=false;
+            RefreshRates();
+            switch(type)
+              {
+
+               case OP_BUYSTOP:
+                  if(OrderDelete(OrderTicket())==false)
+                  i--;
+                  break;
+
+               case OP_SELLSTOP:
+                  if(OrderDelete(OrderTicket())==false)
+                  i--;
+                  break;
+
+              }
+
+           }
+        }
+
+     }
+
+  }
+//+------------------------------------------------------------------+
+
+int CloseOrder(string symbol,int magicNumber)
+  {
+   int total= OrdersTotal();
+   for(int i=total-1;i>=0;i--)
+     {
+
+      OrderSelect(i,SELECT_BY_POS);
+      if(OrderSymbol()==Symbol())
+        {
+         int type=OrderType();
+
+         bool result=false;
+         RefreshRates();
+         switch(type)
+           {
+            //Close opened long positions
+            case OP_BUY       : result=OrderClose(OrderTicket(),OrderLots(),MarketInfo(OrderSymbol(),MODE_BID),5,Red);
+            break;
+
+            //Close opened short positions
+            case OP_SELL      : result=OrderClose(OrderTicket(),OrderLots(),MarketInfo(OrderSymbol(),MODE_ASK),5,Red);
+
+           }
+
+         if(result==false)
+           {
+            //Alert("Order " , OrderTicket() , " failed to close. Error:" , GetLastError() );
+            Sleep(0);
+           }
+        }
+
+     }
+
+   return(0);
   }
 //+------------------------------------------------------------------+
