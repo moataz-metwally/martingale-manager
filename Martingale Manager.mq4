@@ -53,8 +53,8 @@ struct time_t
 struct strategy
 {
 	string symbol;
-	time_t start_time;					// the start time of the strategy in GMT
-	time_t expire_time;					// for let market decide direction GMT time
+	time_t start_time;					// the start time of the strategy based on Broker time
+	time_t expire_time;					// for let market decide direction broker time
 	int lastcandle_dependant_timeframe; // for Bar dependant strategy
 	int deviation_pips;
 	enu_state state;
@@ -266,7 +266,7 @@ int OnInit()
 	conf.s[0].deviation_pips = 500;
 */
 	//--- create timer
-	//EventSetMillisecondTimer(1);
+	EventSetMillisecondTimer(1);
 
 	//---
 	return (INIT_SUCCEEDED);
@@ -285,11 +285,7 @@ void OnDeinit(const int reason)
 void OnTick()
 {
 	//---
-	for (int i = 0; i < conf.num_stratgies; i++)
-	{
 
-		processStrategy(i);
-	}
 }
 //+------------------------------------------------------------------+
 //| Timer function                                                   |
@@ -308,11 +304,18 @@ void OnTimer()
 
 		// read  configuration
 	}
+	
+		for (int i = 0; i < conf.num_stratgies; i++)
+	{
+
+		processStrategy(i);
+	}
 }
 
 void processStrategy(int id)
 {
-	datetime t = TimeGMT();
+	datetime t = TimeCurrent();
+	Comment(TimeHour(t)," ",TimeMinute(t), " ",TimeSeconds(t) );
 	strategy current_strategy = conf.s[id];
 	int current_hour = TimeHour(t);
 	int current_minute = TimeMinute(t);
@@ -375,7 +378,7 @@ void processStrategy(int id)
 		break;
 		/************************************************************************************************************/
 
-		///Wait the start time of the strategy (based on GMT time) then check the last bar of the intended timeframe(bar_time_frame), if it is bullish, we go long, other wise, we go sell.
+		///Wait the start time of the strategy (based on Broker time) then check the last bar of the intended timeframe(bar_time_frame), if it is bullish, we go long, other wise, we go sell.
 	case WAITING_LASTBAR:
 
 	{
@@ -454,7 +457,7 @@ void processStrategy(int id)
 	}
 
 	/************************************************************************************************************/
-	// Wait till the start_time to be reached (GMT based) then go Long blindly with the counter pending order
+	// Wait till the start_time to be reached (broker based) then go Long blindly with the counter pending order
 	case WAITING_START_TIME_BUY:
 
 		if (current_hour == current_strategy.start_time.hour &&
@@ -493,7 +496,7 @@ void processStrategy(int id)
 
 		break;
 	/************************************************************************************************************/
-	// Wait till the start_time to be reached (GMT based) then go Short blindly with the counter pending order.
+	// Wait till the start_time to be reached (Broker based) then go Short blindly with the counter pending order.
 	case WAITING_START_TIME_SELL:
 
 		if (current_hour == current_strategy.start_time.hour &&
@@ -532,7 +535,7 @@ void processStrategy(int id)
 
 		break;
 	/************************************************************************************************************/
-	// Wait till the start_time to be reached (GMT based) then start two pending orders with the given gap(2* deviation_pips).
+	// Wait till the start_time to be reached (Broker based) then start two pending orders with the given gap(2* deviation_pips).
 	case WAITING_START_PENDING_BASED_ON_LASTBAR:
 		if (current_hour == current_strategy.start_time.hour &&
 			current_minute == current_strategy.start_time.minute &&
@@ -678,7 +681,7 @@ void processStrategy(int id)
 	// do nothing and wait the last trades to finish.
 	case TRADE_CAP_REACH:
 
-		Print("Last Chance :(");
+		//Print("Last Chance :(");
 
 		break;
 
