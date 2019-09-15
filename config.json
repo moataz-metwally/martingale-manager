@@ -1,0 +1,57 @@
+{
+    "Configuration": {
+        "strategies": [
+            {
+                "symbol": "GBPJPY",
+                "start_time": {
+                    "minute": 0,
+                    "hour": 10,
+                    "day": 7,
+                    "month": 8,
+                    "year": 2019
+                },
+                "expire_time": {
+                    "minute": 0,
+                    "hour": 0,
+                    "day": 0,
+                    "month": 0,
+                    "year": 0
+                },
+                "lastcandle_dependant_timeframe": {
+                    "M15": 0,
+                    "H1": 1,
+                    "H4": 0,
+                    "D1": 0
+                },
+                "deviation_pips": 500,
+                "enabled": true,
+                "type_market": {
+                    "MARKET_EXCUTION_BUY": 1,
+                    "MARKET_EXCUTION_SELL": 0,
+                    "BAR_DEPENDANT": 0,
+                    "LET_MARKET_DECIDE": 0
+                },
+                "lot_size": [
+                    0.01,
+                    0.02,
+                    0.04,
+                    0.08,
+                    0.16,
+                    0.32,
+                    0.64,
+                    1.28,
+                    2.56,
+                    5.56,
+                    10.24
+                ],
+                "tradeno_cap": 10,
+                "takeprofit": 1000,
+                "stoploss": 1000,
+                "spread_cap":50,
+                "average_spread": 30,
+                "magic_number": 3494649
+            }
+        ],
+        "conf_version": 56
+    }
+}

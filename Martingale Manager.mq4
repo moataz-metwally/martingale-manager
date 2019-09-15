@@ -6,7 +6,10 @@
 #property copyright "Moataz Metwally"
 #property link "https://www.mql5.com"
 #property version "1.00"
-#property strict
+#include <Files\FileTxt.mqh>
+#include <mq4-http.mqh>
+#include <hash.mqh>
+#include <json.mqh>
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
@@ -51,8 +54,8 @@ struct strategy
 {
 	string symbol;
 	time_t start_time;
-	time_t expire_time;
-	int lastcandle_dependant_timeframe;
+	time_t expire_time; // for let market decide direction
+	int lastcandle_dependant_timeframe; // for Bar dependant strategy
 	int deviation_pips;
 	enu_state state;
 	bool enabled;
@@ -75,11 +78,6 @@ struct Config
 {
 	strategy s[20];
 	int num_stratgies;
-	double pip_representation;
-	int time_shift;
-	double minimum_lost_size;
-	double lot_size_for_1_USD_per_pip;
-	double max_loss_per_trade;
 	int conf_version;
 };
 
@@ -94,13 +92,149 @@ struct OrderCount
 	int sellstop;
 	int buystop;
 };
+
+
+void ReadConfig(){
+
+
+string str;
+ string InpFileName="config.json"; // file name
+ string InpDirectoryName="//Files"; // directory name
+      
+    ResetLastError();
+   int file_handle=FileOpen(InpFileName,FILE_READ|FILE_BIN|FILE_ANSI);
+   if(file_handle!=INVALID_HANDLE)
+     {
+      PrintFormat("%s file is available for reading",InpFileName);
+      PrintFormat("File path: %s\\Files\\",TerminalInfoString(TERMINAL_DATA_PATH));
+      //--- additional variables
+      int    str_size;
+    
+      //--- read data from the file
+      while(!FileIsEnding(file_handle))
+        {
+         //--- find out how many symbols are used for writing the time
+         str_size=FileSize(file_handle);
+         //--- read the string
+         str=FileReadString(file_handle,str_size);
+         //--- print the string
+         PrintFormat(str);
+        }
+      //--- close the file
+      FileClose(file_handle);
+      PrintFormat("Data is read, %s file is closed",InpFileName);
+     }
+   else
+      PrintFormat("Failed to open %s file, Error code = %d",InpFileName,GetLastError());
+      
+      
+     
+    JSONParser *parser = new JSONParser();
+    JSONValue *jv = parser.parse(str);
+    Print("json:");
+    if (jv == NULL) {
+        Print("error:"+(string)parser.getErrorCode()+parser.getErrorMessage());
+    } else {
+        
+       Print("PARSED:"+jv.toString());
+        if (jv.isObject()) {
+            JSONObject *jo = jv;
+            int StrategiesCount =jo.getObject("Configuration").getArray("strategies").size();
+            conf.num_stratgies = StrategiesCount;
+            Print("Number of strategies:",StrategiesCount);
+          conf.conf_version = jo.getObject("Configuration").getInt("conf_version");
+          
+          Print("Config version:",conf.conf_version);
+          strategy tmp;
+          for(int i =0;i<StrategiesCount;i++)
+          {
+          
+          JSONObject* StrategyJsonObj= jo.getObject("Configuration").getArray("strategies").getObject(i);
+         
+         
+          conf.s[i].symbol = StrategyJsonObj.getString("symbol");
+        
+           
+          conf.s[i].start_time.minute = StrategyJsonObj.getObject("start_time").getInt("minute");
+          conf.s[i].start_time.hour = StrategyJsonObj.getObject("start_time").getInt("hour");
+          conf.s[i].start_time.day = StrategyJsonObj.getObject("start_time").getInt("day");
+          conf.s[i].start_time.month = StrategyJsonObj.getObject("start_time").getInt("month");
+          conf.s[i].start_time.year = StrategyJsonObj.getObject("start_time").getInt("year");
+        
+          
+          conf.s[i].expire_time.minute = StrategyJsonObj.getObject("expire_time").getInt("minute");
+          conf.s[i].expire_time.hour = StrategyJsonObj.getObject("expire_time").getInt("hour");
+          conf.s[i].expire_time.day = StrategyJsonObj.getObject("expire_time").getInt("day");
+          conf.s[i].expire_time.month = StrategyJsonObj.getObject("expire_time").getInt("month");
+          conf.s[i].expire_time.year = StrategyJsonObj.getObject("expire_time").getInt("year");
+          
+          if(StrategyJsonObj.getObject("lastcandle_dependant_timeframe").getInt("M15") == 1){ 
+          conf.s[i].lastcandle_dependant_timeframe= PERIOD_M15;
+          }else   if(StrategyJsonObj.getObject("lastcandle_dependant_timeframe").getInt("H1") == 1){
+          conf.s[i].lastcandle_dependant_timeframe= PERIOD_H1;
+          }else   if(StrategyJsonObj.getObject("lastcandle_dependant_timeframe").getInt("4H") == 1){
+          conf.s[i].lastcandle_dependant_timeframe= PERIOD_H4;
+          }else   if(StrategyJsonObj.getObject("lastcandle_dependant_timeframe").getInt("D1") == 1){
+          conf.s[i].lastcandle_dependant_timeframe= PERIOD_D1;
+          }
+          
+            if(StrategyJsonObj.getObject("type_market").getInt("MARKET_EXCUTION_BUY") == 1){ 
+          conf.s[i].type_market= MARKET_EXCUTION_BUY;
+          }else   if(StrategyJsonObj.getObject("type_market").getInt("MARKET_EXCUTION_SELL") == 1){
+         conf.s[i].type_market= MARKET_EXCUTION_SELL;
+          }else   if(StrategyJsonObj.getObject("type_market").getInt("BAR_DEPENDANT") == 1){
+          conf.s[i].type_market= BAR_DEPENDANT;
+          }else   if(StrategyJsonObj.getObject("type_market").getInt("LET_MARKET_DECIDE") == 1){
+          conf.s[i].type_market= LET_MARKET_DECIDE;
+          }
+         
+          
+           conf.s[i].enabled = StrategyJsonObj.getBool("enabled");
+           conf.s[i].deviation_pips = StrategyJsonObj.getInt("deviation_pips");
+          conf.s[i].takeprofit = StrategyJsonObj.getInt("takeprofit");
+          conf.s[i].tradeno_cap = StrategyJsonObj.getInt("tradeno_cap");
+            conf.s[i].spread_cap = StrategyJsonObj.getInt("spread_cap");
+          conf.s[i].average_spread = StrategyJsonObj.getInt("average_spread");
+          conf.s[i].magic_number = StrategyJsonObj.getInt("magic_number");
+           conf.s[i].stoploss = StrategyJsonObj.getInt("stoploss");
+           
+           Print("Magic:",conf.s[i].magic_number);
+         
+          JSONArray* LotSizeJsonArray = StrategyJsonObj.getArray("lot_size");
+        int lot_count = LotSizeJsonArray.size();
+         
+        
+         
+         for(int j=0;j<lot_count;j++){
+         
+         conf.s[i].lot_size[j] = LotSizeJsonArray.getDouble(j);
+         Print("lot_size[",i,"]:", conf.s[i].lot_size[j]);
+         }
+
+          }
+         
+         
+        
+
+        }
+        delete jv;
+    }
+    delete parser;
+
+
+}
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit()
 {
 
-	conf.num_stratgies = 1;
+
+
+ReadConfig();
+
+
+	/*conf.num_stratgies = 1;
 	conf.s[0].average_spread = 30;
 	conf.s[0].enabled = true;
 	conf.s[0].start_time.year = 2019;
@@ -130,7 +264,7 @@ int OnInit()
 	conf.s[0].stoploss = 400;
 	conf.s[0].magic_number = 26587;
 	conf.s[0].deviation_pips = 500;
-
+*/
 	//--- create timer
 	//EventSetMillisecondTimer(1);
 
@@ -210,15 +344,7 @@ void processStrategy(int id)
 	if (current_strategy.enabled == false)
 		return;
 
-   if (current_hour == current_strategy.expire_time.hour &&
-			current_minute == current_strategy.expire_time.minute &&
-			current_day == current_strategy.expire_time.day &&
-			current_month == current_strategy.expire_time.month &&
-			current_year == current_strategy.expire_time.year)
-		{
-		
-		activeState = FINALIZE_TRADES;
-		}
+ 
    RefreshRates();
 	switch (activeState)
 	{
@@ -454,6 +580,18 @@ void processStrategy(int id)
 			DeletePendingOrders(strategy_symbol, magic_number);
 			CurrentTradeSize = 1;
 			activeState = COUNTER_TRADE_LOOP;
+		}else{
+		
+		  if (current_hour == current_strategy.expire_time.hour &&
+			current_minute == current_strategy.expire_time.minute &&
+			current_day == current_strategy.expire_time.day &&
+			current_month == current_strategy.expire_time.month &&
+			current_year == current_strategy.expire_time.year)
+		{
+		
+		activeState = FINALIZE_TRADES;
+		}
+		
 		}
 	}
 
