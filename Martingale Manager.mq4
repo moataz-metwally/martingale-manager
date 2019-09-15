@@ -53,8 +53,8 @@ struct time_t
 struct strategy
 {
 	string symbol;
-	time_t start_time;
-	time_t expire_time;					// for let market decide direction
+	time_t start_time;					// the start time of the strategy in GMT
+	time_t expire_time;					// for let market decide direction GMT time
 	int lastcandle_dependant_timeframe; // for Bar dependant strategy
 	int deviation_pips;
 	enu_state state;
@@ -296,9 +296,7 @@ void OnTick()
 //+------------------------------------------------------------------+
 
 int counter;
-//+------------------------------------------------------------------+
-//|                                                                  |
-//+------------------------------------------------------------------+
+
 void OnTimer()
 {
 	//---
@@ -311,11 +309,7 @@ void OnTimer()
 		// read  configuration
 	}
 }
-//+------------------------------------------------------------------+
 
-//+------------------------------------------------------------------+
-//|                                                                  |
-//+------------------------------------------------------------------+
 void processStrategy(int id)
 {
 	datetime t = TimeGMT();
@@ -347,9 +341,15 @@ void processStrategy(int id)
 	RefreshRates();
 	switch (activeState)
 	{
-	/************************************************************************************************************/
-	case CHECK_STRATGEY:
+		/************************************************************************************************************/
+		// In this state we check on the type of the strategy based on the selected type_market.
+		// MARKET_EXCUTION_BUY means that the strategy shall execute buy order once the start time has been reached regardless any other condition
+		//MARKET_EXCUTION_SELL means that the strategy shall execute sell order once the start time has been reached regardless any other condition
+		//BAR_DEPENDANT means that the strategy shall start first order trend based on the last bar direction and the given start time. if it was bullish, we go bullish  other wise, we go bearish.
+		//LET_MARKET_DECIDE this means that the strategy will start at a certain time with two pending orders as breaking out targets. these to pending orders are apart of each other with a given gap (deviation pips).
+		// if one pending order is activated then that's the right direction after that we delete the other pending order. and start the martingale loop(counter order loop).
 
+	case CHECK_STRATGEY:
 		CurrentTradeSize = 0;
 		if (current_strategy.type_market == MARKET_EXCUTION_BUY)
 		{
@@ -373,7 +373,9 @@ void processStrategy(int id)
 		}
 
 		break;
-	/************************************************************************************************************/
+		/************************************************************************************************************/
+
+		///Wait the start time of the strategy (based on GMT time) then check the last bar of the intended timeframe(bar_time_frame), if it is bullish, we go long, other wise, we go sell.
 	case WAITING_LASTBAR:
 
 	{
@@ -452,6 +454,7 @@ void processStrategy(int id)
 	}
 
 	/************************************************************************************************************/
+	// Wait till the start_time to be reached (GMT based) then go Long blindly with the counter pending order
 	case WAITING_START_TIME_BUY:
 
 		if (current_hour == current_strategy.start_time.hour &&
@@ -490,6 +493,7 @@ void processStrategy(int id)
 
 		break;
 	/************************************************************************************************************/
+	// Wait till the start_time to be reached (GMT based) then go Short blindly with the counter pending order.
 	case WAITING_START_TIME_SELL:
 
 		if (current_hour == current_strategy.start_time.hour &&
@@ -528,6 +532,7 @@ void processStrategy(int id)
 
 		break;
 	/************************************************************************************************************/
+	// Wait till the start_time to be reached (GMT based) then start two pending orders with the given gap(2* deviation_pips).
 	case WAITING_START_PENDING_BASED_ON_LASTBAR:
 		if (current_hour == current_strategy.start_time.hour &&
 			current_minute == current_strategy.start_time.minute &&
@@ -570,6 +575,7 @@ void processStrategy(int id)
 
 		break;
 	/************************************************************************************************************/
+	// wait till one of the two pending orders placed to go to the COUNTER_TRADE_LOOP ( martingale loop)
 	case LET_MARKET_DECIDE_FIND_DIRECTION:
 	{
 
@@ -598,6 +604,8 @@ void processStrategy(int id)
 	break;
 
 	/************************************************************************************************************/
+	// Martingale counter trade loop to protect orders. counter orders are based on other order's stoploss. this state will keep checking if the tradeno_cap has been reached or not, if so, we go to TRADE_CAP_REACH state where no more protection.
+	// if one of the old postions hit the takeprofit we will finalize all the trades.
 	case COUNTER_TRADE_LOOP:
 
 		// Check if the trade number cap has been reached
@@ -656,6 +664,7 @@ void processStrategy(int id)
 
 		break;
 	/************************************************************************************************************/
+	// Close and delete all existing trades.
 	case FINALIZE_TRADES:
 
 		DeletePendingOrders(strategy_symbol, magic_number);
@@ -666,6 +675,7 @@ void processStrategy(int id)
 		break;
 
 		/************************************************************************************************************/
+	// do nothing and wait the last trades to finish.
 	case TRADE_CAP_REACH:
 
 		Print("Last Chance :(");
@@ -681,9 +691,7 @@ void processStrategy(int id)
 	conf.s[id].state = activeState;
 	conf.s[id].next_size = CurrentTradeSize;
 }
-//+------------------------------------------------------------------+
-//|                                                                  |
-//+------------------------------------------------------------------+
+
 int BuyOrder(string symbol, double price, double size, double spread, int magicnumber, double takeprofit, double stoploss)
 {
 	int ticketNo = 0;
@@ -714,9 +722,7 @@ int SellOrder(string symbol, double price, double size, double spread, int magic
 	}
 	return ticketNo;
 }
-//+------------------------------------------------------------------+
-//|                                                                  |
-//+------------------------------------------------------------------+
+
 int BuyStopOrder(string symbol, double price, double size, double spread, int magicnumber, double takeprofit, double stoploss)
 {
 	int ticketNo = 0;
@@ -730,9 +736,7 @@ int BuyStopOrder(string symbol, double price, double size, double spread, int ma
 	}
 	return ticketNo;
 }
-//+------------------------------------------------------------------+
-//|                                                                  |
-//+------------------------------------------------------------------+
+
 int SellStopOrder(string symbol, double price, double size, double spread, int magicnumber, double takeprofit, double stoploss)
 {
 	int ticketNo = 0;
@@ -747,23 +751,15 @@ int SellStopOrder(string symbol, double price, double size, double spread, int m
 
 	return ticketNo;
 }
-//+------------------------------------------------------------------+
-//|                                                                  |
-//+------------------------------------------------------------------+
+
 void BuyLimitOrder(double price, double size, double spread, double takeprofit, double stoploss)
 {
 }
-//+------------------------------------------------------------------+
-//|                                                                  |
-//+------------------------------------------------------------------+
+
 void SellLimitOrder(double price, double size, double spread, double takeprofit, double stoploss)
 {
 }
-//+------------------------------------------------------------------+
 
-//+------------------------------------------------------------------+
-//|                                                                  |
-//+------------------------------------------------------------------+
 OrderCount CountOrders(string symbol, int magicNumber)
 {
 	OrderCount tmp;
