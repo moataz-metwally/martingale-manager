@@ -6,8 +6,8 @@
 #property copyright "Moataz Metwally"
 #property link "https://www.mql5.com"
 #property version "1.00"
-#include <Files\FileTxt.mqh>
 #include <mq4-http.mqh>
+#include <Files\FileTxt.mqh>
 #include <hash.mqh>
 #include <json.mqh>
 //+------------------------------------------------------------------+
@@ -102,7 +102,7 @@ void ReadConfig()
 	string InpDirectoryName = "//Files"; // directory name
 
 	ResetLastError();
-	int file_handle = FileOpen(InpFileName, FILE_READ | FILE_BIN | FILE_ANSI);
+	int file_handle = FileOpen(InpFileName, FILE_READ | FILE_BIN | FILE_ANSI | FILE_SHARE_READ );
 	if (file_handle != INVALID_HANDLE)
 	{
 		//PrintFormat("%s file is available for reading", InpFileName);
@@ -169,73 +169,84 @@ void ReadConfig()
 			
 			
 			int StrategiesCount = jo.getObject("Configuration").getArray("strategies").size();
-			conf.num_stratgies = StrategiesCount;
+		
 			Print("Number of strategies:", StrategiesCount);
 			
 			strategy tmp;
+			int StrategiesCountForCurrentSymbol = 0;
 			for (int i = 0; i < StrategiesCount; i++)
 			{
 
 				JSONObject *StrategyJsonObj = jo.getObject("Configuration").getArray("strategies").getObject(i);
 
-				conf.s[i].symbol = StrategyJsonObj.getString("symbol");
+              string current_symbol = StrategyJsonObj.getString("symbol");
+              
+              
+              // filter out all the stratgies related to the symbol of the attached chart
+              if(current_symbol != Symbol()){
+              delete StrategyJsonObj;
+               continue;
+               }
+              
+               
+				conf.s[StrategiesCountForCurrentSymbol].symbol = current_symbol;
 
-				conf.s[i].start_time.minute = StrategyJsonObj.getObject("start_time").getInt("minute");
-				conf.s[i].start_time.hour = StrategyJsonObj.getObject("start_time").getInt("hour");
-				conf.s[i].start_time.day = StrategyJsonObj.getObject("start_time").getInt("day");
-				conf.s[i].start_time.month = StrategyJsonObj.getObject("start_time").getInt("month");
-				conf.s[i].start_time.year = StrategyJsonObj.getObject("start_time").getInt("year");
+				conf.s[StrategiesCountForCurrentSymbol].start_time.minute = StrategyJsonObj.getObject("start_time").getInt("minute");
+				conf.s[StrategiesCountForCurrentSymbol].start_time.hour = StrategyJsonObj.getObject("start_time").getInt("hour");
+				conf.s[StrategiesCountForCurrentSymbol].start_time.day = StrategyJsonObj.getObject("start_time").getInt("day");
+				conf.s[StrategiesCountForCurrentSymbol].start_time.month = StrategyJsonObj.getObject("start_time").getInt("month");
+				conf.s[StrategiesCountForCurrentSymbol].start_time.year = StrategyJsonObj.getObject("start_time").getInt("year");
 
-				conf.s[i].expire_time.minute = StrategyJsonObj.getObject("expire_time").getInt("minute");
-				conf.s[i].expire_time.hour = StrategyJsonObj.getObject("expire_time").getInt("hour");
-				conf.s[i].expire_time.day = StrategyJsonObj.getObject("expire_time").getInt("day");
-				conf.s[i].expire_time.month = StrategyJsonObj.getObject("expire_time").getInt("month");
-				conf.s[i].expire_time.year = StrategyJsonObj.getObject("expire_time").getInt("year");
+				conf.s[StrategiesCountForCurrentSymbol].expire_time.minute = StrategyJsonObj.getObject("expire_time").getInt("minute");
+				conf.s[StrategiesCountForCurrentSymbol].expire_time.hour = StrategyJsonObj.getObject("expire_time").getInt("hour");
+				conf.s[StrategiesCountForCurrentSymbol].expire_time.day = StrategyJsonObj.getObject("expire_time").getInt("day");
+				conf.s[StrategiesCountForCurrentSymbol].expire_time.month = StrategyJsonObj.getObject("expire_time").getInt("month");
+				conf.s[StrategiesCountForCurrentSymbol].expire_time.year = StrategyJsonObj.getObject("expire_time").getInt("year");
 
 				if (StrategyJsonObj.getObject("lastcandle_dependant_timeframe").getInt("M15") == 1)
 				{
-					conf.s[i].lastcandle_dependant_timeframe = PERIOD_M15;
+					conf.s[StrategiesCountForCurrentSymbol].lastcandle_dependant_timeframe = PERIOD_M15;
 				}
 				else if (StrategyJsonObj.getObject("lastcandle_dependant_timeframe").getInt("H1") == 1)
 				{
-					conf.s[i].lastcandle_dependant_timeframe = PERIOD_H1;
+					conf.s[StrategiesCountForCurrentSymbol].lastcandle_dependant_timeframe = PERIOD_H1;
 				}
 				else if (StrategyJsonObj.getObject("lastcandle_dependant_timeframe").getInt("4H") == 1)
 				{
-					conf.s[i].lastcandle_dependant_timeframe = PERIOD_H4;
+					conf.s[StrategiesCountForCurrentSymbol].lastcandle_dependant_timeframe = PERIOD_H4;
 				}
 				else if (StrategyJsonObj.getObject("lastcandle_dependant_timeframe").getInt("D1") == 1)
 				{
-					conf.s[i].lastcandle_dependant_timeframe = PERIOD_D1;
+					conf.s[StrategiesCountForCurrentSymbol].lastcandle_dependant_timeframe = PERIOD_D1;
 				}
 
 				if (StrategyJsonObj.getObject("type_market").getInt("MARKET_EXCUTION_BUY") == 1)
 				{
-					conf.s[i].type_market = MARKET_EXCUTION_BUY;
+					conf.s[StrategiesCountForCurrentSymbol].type_market = MARKET_EXCUTION_BUY;
 				}
 				else if (StrategyJsonObj.getObject("type_market").getInt("MARKET_EXCUTION_SELL") == 1)
 				{
-					conf.s[i].type_market = MARKET_EXCUTION_SELL;
+					conf.s[StrategiesCountForCurrentSymbol].type_market = MARKET_EXCUTION_SELL;
 				}
 				else if (StrategyJsonObj.getObject("type_market").getInt("BAR_DEPENDANT") == 1)
 				{
-					conf.s[i].type_market = BAR_DEPENDANT;
+					conf.s[StrategiesCountForCurrentSymbol].type_market = BAR_DEPENDANT;
 				}
 				else if (StrategyJsonObj.getObject("type_market").getInt("LET_MARKET_DECIDE") == 1)
 				{
-					conf.s[i].type_market = LET_MARKET_DECIDE;
+					conf.s[StrategiesCountForCurrentSymbol].type_market = LET_MARKET_DECIDE;
 				}
 
-				conf.s[i].enabled = StrategyJsonObj.getBool("enabled");
-				conf.s[i].deviation_pips = StrategyJsonObj.getInt("deviation_pips");
-				conf.s[i].takeprofit = StrategyJsonObj.getInt("takeprofit");
-				conf.s[i].tradeno_cap = StrategyJsonObj.getInt("tradeno_cap");
-				conf.s[i].spread_cap = StrategyJsonObj.getInt("spread_cap");
-				conf.s[i].average_spread = StrategyJsonObj.getInt("average_spread");
-				conf.s[i].magic_number = StrategyJsonObj.getInt("magic_number");
-				conf.s[i].stoploss = StrategyJsonObj.getInt("stoploss");
+				conf.s[StrategiesCountForCurrentSymbol].enabled = StrategyJsonObj.getBool("enabled");
+				conf.s[StrategiesCountForCurrentSymbol].deviation_pips = StrategyJsonObj.getInt("deviation_pips");
+				conf.s[StrategiesCountForCurrentSymbol].takeprofit = StrategyJsonObj.getInt("takeprofit");
+				conf.s[StrategiesCountForCurrentSymbol].tradeno_cap = StrategyJsonObj.getInt("tradeno_cap");
+				conf.s[StrategiesCountForCurrentSymbol].spread_cap = StrategyJsonObj.getInt("spread_cap");
+				conf.s[StrategiesCountForCurrentSymbol].average_spread = StrategyJsonObj.getInt("average_spread");
+				conf.s[StrategiesCountForCurrentSymbol].magic_number = StrategyJsonObj.getInt("magic_number");
+				conf.s[StrategiesCountForCurrentSymbol].stoploss = StrategyJsonObj.getInt("stoploss");
 
-				Print("Magic:", conf.s[i].magic_number);
+				Print("Magic:", conf.s[StrategiesCountForCurrentSymbol].magic_number);
 
 				JSONArray *LotSizeJsonArray = StrategyJsonObj.getArray("lot_size");
 				int lot_count = LotSizeJsonArray.size();
@@ -243,12 +254,15 @@ void ReadConfig()
 				for (int j = 0; j < lot_count; j++)
 				{
 
-					conf.s[i].lot_size[j] = LotSizeJsonArray.getDouble(j);
-					Print("lot_size[", i, "]:", conf.s[i].lot_size[j]);
+					conf.s[StrategiesCountForCurrentSymbol].lot_size[j] = LotSizeJsonArray.getDouble(j);
+					Print("lot_size[", i, "]:", conf.s[StrategiesCountForCurrentSymbol].lot_size[j]);
 				}
+				
+				StrategiesCountForCurrentSymbol++;
 				
 				delete StrategyJsonObj;
 			}
+			conf.num_stratgies = StrategiesCountForCurrentSymbol;
 		}
 		delete jv;
 		
@@ -295,7 +309,7 @@ int OnInit()
 	conf.s[0].deviation_pips = 500;
 */
 	//--- create timer
-	EventSetMillisecondTimer(1);
+	EventSetTimer(20);
 
 	//---
 	return (INIT_SUCCEEDED);
@@ -313,39 +327,35 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 void OnTick()
 {
-	//---
+RefreshRates();
+
+		for (int i = 0; i < conf.num_stratgies; i++)
+	{
+
+		processStrategy(i);
+	}
 
 }
 //+------------------------------------------------------------------+
 //| Timer function                                                   |
 //+------------------------------------------------------------------+
 
-int counter;
 
 void OnTimer()
 {
 	//---
-	RefreshRates();
-
-	counter++;
-	if (counter == 2000)
-	{
-
-		ReadConfig();
-		counter = 0;
-	}
 	
-		for (int i = 0; i < conf.num_stratgies; i++)
-	{
+	
+      Print("Checking config File");
+		ReadConfig();
 
-		processStrategy(i);
-	}
+	
 }
 
 void processStrategy(int id)
 {
 	datetime t = TimeCurrent();
-	Comment(TimeHour(t)," ",TimeMinute(t), " ",TimeSeconds(t) );
+
 	strategy current_strategy = conf.s[id];
 	int current_hour = TimeHour(t);
 	int current_minute = TimeMinute(t);
@@ -367,7 +377,7 @@ void processStrategy(int id)
 
 	double StopLoss, TakeProfit, TradeSize, OpenTradeAt;
 	double CounterPendingStopLoss, CounterPendingTakeProfit, CounterPendingOpenTradeAt, CounterPendingOrderTradeSize;
-
+Comment(take_profit);
 	if (current_strategy.enabled == false)
 		return;
 
@@ -383,6 +393,7 @@ void processStrategy(int id)
 		// if one pending order is activated then that's the right direction after that we delete the other pending order. and start the martingale loop(counter order loop).
 
 	case CHECK_STRATGEY:
+	Comment("CHECK_STRATGEY");
 		CurrentTradeSize = 0;
 		if (current_strategy.type_market == MARKET_EXCUTION_BUY)
 		{
@@ -412,6 +423,7 @@ void processStrategy(int id)
 	case WAITING_LASTBAR:
 
 	{
+	Comment("WAITING_LASTBAR");
 
 		if (current_hour == current_strategy.start_time.hour &&
 			current_minute == current_strategy.start_time.minute &&
@@ -490,6 +502,7 @@ void processStrategy(int id)
 	// Wait till the start_time to be reached (broker based) then go Long blindly with the counter pending order
 	case WAITING_START_TIME_BUY:
 
+Comment("WAITING_START_TIME_BUY");
 		if (current_hour == current_strategy.start_time.hour &&
 			current_minute == current_strategy.start_time.minute &&
 			current_day == current_strategy.start_time.day &&
@@ -528,7 +541,7 @@ void processStrategy(int id)
 	/************************************************************************************************************/
 	// Wait till the start_time to be reached (Broker based) then go Short blindly with the counter pending order.
 	case WAITING_START_TIME_SELL:
-
+Comment("WAITING_START_TIME_SELL");
 		if (current_hour == current_strategy.start_time.hour &&
 			current_minute == current_strategy.start_time.minute &&
 			current_day == current_strategy.start_time.day &&
@@ -567,6 +580,8 @@ void processStrategy(int id)
 	/************************************************************************************************************/
 	// Wait till the start_time to be reached (Broker based) then start two pending orders with the given gap(2* deviation_pips).
 	case WAITING_START_PENDING_BASED_ON_LASTBAR:
+	
+	Comment("WAITING_START_PENDING_BASED_ON_LASTBAR");
 		if (current_hour == current_strategy.start_time.hour &&
 			current_minute == current_strategy.start_time.minute &&
 			current_day == current_strategy.start_time.day &&
@@ -611,7 +626,7 @@ void processStrategy(int id)
 	// wait till one of the two pending orders placed to go to the COUNTER_TRADE_LOOP ( martingale loop)
 	case LET_MARKET_DECIDE_FIND_DIRECTION:
 	{
-
+	Comment("LET_MARKET_DECIDE_FIND_DIRECTION");
 		if ((order_counts.buy == 1 && order_counts.sellstop == 1) || (order_counts.sell == 1 && order_counts.buystop == 1))
 		{
 
@@ -641,6 +656,7 @@ void processStrategy(int id)
 	// if one of the old postions hit the takeprofit we will finalize all the trades.
 	case COUNTER_TRADE_LOOP:
 
+Comment("COUNTER_TRADE_LOOP");
 		// Check if the trade number cap has been reached
 		if (CurrentTradeSize >= current_strategy.tradeno_cap)
 		{
@@ -699,7 +715,7 @@ void processStrategy(int id)
 	/************************************************************************************************************/
 	// Close and delete all existing trades.
 	case FINALIZE_TRADES:
-
+Comment("FINALIZE_TRADES");
 		DeletePendingOrders(strategy_symbol, magic_number);
 		CloseOrder(strategy_symbol, magic_number);
 
@@ -710,7 +726,7 @@ void processStrategy(int id)
 		/************************************************************************************************************/
 	// do nothing and wait the last trades to finish.
 	case TRADE_CAP_REACH:
-
+Comment("TRADE_CAP_REACH");
 		//Print("Last Chance :(");
 
 		break;
