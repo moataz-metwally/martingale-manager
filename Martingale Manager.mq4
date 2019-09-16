@@ -54,7 +54,7 @@ struct strategy
 {
 	string symbol;
 	time_t start_time;					// the start time of the strategy based on Broker time
-	time_t expire_time;					// for let market decide direction broker time
+	time_t expire_time;					// for let market decide direction GMT time
 	int lastcandle_dependant_timeframe; // for Bar dependant strategy
 	int deviation_pips;
 	enu_state state;
@@ -93,6 +93,7 @@ struct OrderCount
 	int buystop;
 };
 
+static int LastConfVersion = 0;
 void ReadConfig()
 {
 
@@ -104,8 +105,8 @@ void ReadConfig()
 	int file_handle = FileOpen(InpFileName, FILE_READ | FILE_BIN | FILE_ANSI);
 	if (file_handle != INVALID_HANDLE)
 	{
-		PrintFormat("%s file is available for reading", InpFileName);
-		PrintFormat("File path: %s\\Files\\", TerminalInfoString(TERMINAL_DATA_PATH));
+		//PrintFormat("%s file is available for reading", InpFileName);
+		//PrintFormat("File path: %s\\Files\\", TerminalInfoString(TERMINAL_DATA_PATH));
 		//--- additional variables
 		int str_size;
 
@@ -117,18 +118,18 @@ void ReadConfig()
 			//--- read the string
 			str = FileReadString(file_handle, str_size);
 			//--- print the string
-			PrintFormat(str);
+			//PrintFormat(str);
 		}
 		//--- close the file
 		FileClose(file_handle);
-		PrintFormat("Data is read, %s file is closed", InpFileName);
+		//PrintFormat("Data is read, %s file is closed", InpFileName);
 	}
 	else
 		PrintFormat("Failed to open %s file, Error code = %d", InpFileName, GetLastError());
 
 	JSONParser *parser = new JSONParser();
 	JSONValue *jv = parser.parse(str);
-	Print("json:");
+	//Print("json:");
 	if (jv == NULL)
 	{
 		Print("error:" + (string)parser.getErrorCode() + parser.getErrorMessage());
@@ -136,16 +137,41 @@ void ReadConfig()
 	else
 	{
 
-		Print("PARSED:" + jv.toString());
+		//Print("PARSED:" + jv.toString());
 		if (jv.isObject())
 		{
-			JSONObject *jo = jv;
+		
+		JSONObject *jo = jv;
+		 int conf_version = jo.getObject("Configuration").getInt("conf_version");
+		
+		if(LastConfVersion == conf_version){
+		
+		
+		delete jo;
+		delete parser;
+		delete jv;
+		Print("No Config file Update");
+		return;
+		
+		}
+		Print("New Config file Update");
+		// work aroud to clear the configuration
+		Config emptycConf;
+		conf = emptycConf;
+		
+		
+		LastConfVersion = conf_version;
+		conf.conf_version = conf_version;
+		
+
+			Print("Config version:", conf.conf_version);
+			
+			
+			
 			int StrategiesCount = jo.getObject("Configuration").getArray("strategies").size();
 			conf.num_stratgies = StrategiesCount;
 			Print("Number of strategies:", StrategiesCount);
-			conf.conf_version = jo.getObject("Configuration").getInt("conf_version");
-
-			Print("Config version:", conf.conf_version);
+			
 			strategy tmp;
 			for (int i = 0; i < StrategiesCount; i++)
 			{
@@ -220,9 +246,12 @@ void ReadConfig()
 					conf.s[i].lot_size[j] = LotSizeJsonArray.getDouble(j);
 					Print("lot_size[", i, "]:", conf.s[i].lot_size[j]);
 				}
+				
+				delete StrategyJsonObj;
 			}
 		}
 		delete jv;
+		
 	}
 	delete parser;
 }
@@ -299,10 +328,11 @@ void OnTimer()
 	RefreshRates();
 
 	counter++;
-	if (counter % 2000 == 0)
+	if (counter == 2000)
 	{
 
-		// read  configuration
+		ReadConfig();
+		counter = 0;
 	}
 	
 		for (int i = 0; i < conf.num_stratgies; i++)
